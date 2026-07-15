@@ -51,6 +51,7 @@ Return only valid JSON matching the schema.
 Rules:
 - Skip banners, navigation, and generic marketing copy.
 - Never invent dates or prices that are not present in the text.
+- Only include offers whose departure date is tomorrow or later; skip past departures.
 - Use ISO dates (YYYY-MM-DD) when possible.
 - destination should be "Country, City/Region" when both are known.
 - currency should be a 3-letter code (usually PLN).
