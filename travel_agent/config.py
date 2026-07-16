@@ -34,7 +34,7 @@ def _split_emails(value: str) -> list[str]:
 
 def get_settings() -> Settings:
     base_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    default_to = "andalath@gmail.com, goniaras@gmail.com, katarzyna.dyngosz@gmail.com"
+    default_to = "andalath@gmail.com, katarzyna.dyngosz@gmail.com, goniaras@gmail.com"
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is required. Set it in .env or the environment.")

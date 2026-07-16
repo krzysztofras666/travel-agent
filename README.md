@@ -8,18 +8,23 @@ Repo: **https://github.com/krzysztofras666/travel-agent**
 It lives in a sibling `../gmail-agent/` folder locally and can share the same
 `OPENAI_API_KEY` and Gmail OAuth tokens for the daily email digest.
 
-## Quick start
+## Quick start (macOS)
 
 ```bash
-cd /path/to/travel-agent   # sibling of gmail-agent
+cd ~/travel-agent
 python3 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
-playwright install chromium   # optional but recommended
+playwright install chromium
 cp .env.example .env          # add OPENAI_API_KEY
-python -m travel_agent list-sites
-python -m travel_agent run --site itaka --max-per-destination 1
+.venv/bin/python -m travel_agent list-sites
+.venv/bin/python -m travel_agent run --max-per-destination 1
 ```
+
+If `python -m travel_agent` fails with `No module named 'google.auth'`, you are
+using system Python instead of the venv. Always run `.venv/bin/python -m travel_agent …`
+or `source .venv/bin/activate` first.
 
 ## Commands
 
@@ -35,6 +40,43 @@ python -m travel_agent run --browser-all
 python -m travel_agent send --dry-run
 python -m travel_agent preview-email --out /tmp/preview.html
 ```
+
+## Daily email digest (08:30)
+
+The digest is a styled HTML email with a clickable link for **every offer**
+(destination title + “Zobacz ofertę” button). Default recipients:
+
+- `andalath@gmail.com`
+- `katarzyna.dyngosz@gmail.com`
+- `goniaras@gmail.com`
+
+### One-time Gmail setup
+
+```bash
+cd ~/gmail-agent
+source .venv/bin/activate
+python -m gmail_agent auth --account andalath@gmail.com
+```
+
+### Send once manually
+
+```bash
+cd ~/travel-agent
+source .venv/bin/activate
+python -m travel_agent send
+python -m travel_agent preview-email --out logs/last_email.html
+```
+
+### Schedule every day at 08:30 (macOS launchd)
+
+```bash
+cd ~/travel-agent
+./scripts/install_travel_schedule.sh
+./scripts/run_travel_daily.sh --dry-run
+launchctl kickstart gui/$(id -u)/com.travel-agent.daily
+```
+
+Logs: `logs/travel_run.log`, `logs/last_email.html`
 
 ## Configuration
 
