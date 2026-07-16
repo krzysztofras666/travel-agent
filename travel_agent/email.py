@@ -13,8 +13,6 @@ from travel_agent.config import Settings
 from travel_agent.render_html import build_subject, render_html, render_plain_text
 from travel_agent.models import RunResult
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
-
 
 def send_digest(
     settings: Settings,
@@ -52,15 +50,30 @@ def send_digest(
     return out_path
 
 
-def _gmail_service(settings: Settings, sender: str):
-    token_path = Path(settings.gmail_token_dir) / sender / "token.json"
-    if not token_path.exists():
-        raise RuntimeError(
-            f"No Gmail token for {sender} at {token_path}. "
-            "Authenticate with gmail-agent first: python -m gmail_agent auth"
-        )
+def find_gmail_token_path(settings: Settings, sender: str) -> Path:
+    repo_root = Path(__file__).resolve().parents[1]
+    candidates = [
+        Path(settings.gmail_token_dir) / sender / "token.json",
+        Path(settings.gmail_token_dir) / "accounts" / sender / "token.json",
+        repo_root.parent / "gmail-agent" / "accounts" / sender / "token.json",
+        repo_root / "accounts" / sender / "token.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
 
-    creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+    tried = "\n".join(f"  - {path}" for path in candidates)
+    raise RuntimeError(
+        f"No Gmail token for {sender}. Looked in:\n{tried}\n\n"
+        "Authenticate first:\n"
+        f"  cd ~/gmail-agent && python -m gmail_agent auth --account {sender}\n\n"
+        "If tokens live elsewhere, set GMAIL_TOKEN_DIR in .env"
+    )
+
+
+def _gmail_service(settings: Settings, sender: str):
+    token_path = find_gmail_token_path(settings, sender)
+    creds = Credentials.from_authorized_user_file(str(token_path))
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
         token_path.write_text(creds.to_json(), encoding="utf-8")

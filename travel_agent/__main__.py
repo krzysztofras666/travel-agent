@@ -100,6 +100,7 @@ def cmd_send(args: argparse.Namespace) -> int:
         )
     )
     recipients = _normalize_recipients(args.recipients)
+    to_addrs = recipients or settings.email_to
     out = send_digest(
         settings,
         result,
@@ -107,7 +108,11 @@ def cmd_send(args: argparse.Namespace) -> int:
         recipients=recipients,
         dry_run=args.dry_run,
     )
-    print(f"Email HTML written to {out}")
+    if args.dry_run:
+        print(f"Dry run only — email NOT sent. Preview written to {out}")
+    else:
+        print(f"Email sent to: {', '.join(to_addrs)}")
+        print(f"Preview saved to: {out}")
     return 0
 
 
