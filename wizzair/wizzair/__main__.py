@@ -9,7 +9,7 @@ from pathlib import Path
 from wizzair.config import get_settings
 from wizzair.email import send_digest
 from wizzair.render import print_json, print_scan_result
-from wizzair.scanner import scan_multipass
+from wizzair.scanner import login_and_save_session, scan_multipass
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,6 +42,10 @@ def build_parser() -> argparse.ArgumentParser:
     preview.add_argument("--out", default="logs/last_email.html", help="Ścieżka wyjściowa")
     preview.add_argument("--headed", action="store_true")
     preview.set_defaults(func=cmd_preview)
+
+    auth = sub.add_parser("login", help="Zaloguj się i zapisz sesję przeglądarki (przydatne na Macu)")
+    auth.add_argument("--headed", action="store_true", help="Pokaż okno przeglądarki")
+    auth.set_defaults(func=cmd_login)
 
     return parser
 
@@ -85,6 +89,16 @@ def cmd_preview(args: argparse.Namespace) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render_html(result), encoding="utf-8")
     print(f"Zapisano {out}")
+    return 0
+
+
+def cmd_login(args: argparse.Namespace) -> int:
+    settings = _with_headed(get_settings(), args)
+    if not args.headed:
+        settings = replace(settings, headless=False)
+    session_path = asyncio.run(login_and_save_session(settings))
+    print(f"Zalogowano. Sesja zapisana: {session_path}")
+    print("Kolejne uruchomienia mogą używać zapisanej sesji bez ponownego logowania.")
     return 0
 
 

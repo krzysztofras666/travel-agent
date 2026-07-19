@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import string
+from pathlib import Path
 
-from playwright.async_api import BrowserContext, Page
+from playwright.async_api import BrowserContext, Error as PlaywrightError, Page
 
 from wizzair.config import WALLETS_URL, Settings
 from wizzair.models import Destination
@@ -16,20 +18,124 @@ ORIGIN_QUERIES = {
     "POZ": ("Pozn", "Poznań"),
 }
 
+LOGIN_ERROR_SELECTORS = (
+    "#input-error",
+    ".kc-feedback-text",
+    ".alert-error",
+    ".pf-c-alert__title",
+    '[class*="error"]',
+)
+
 
 async def login(context: BrowserContext, settings: Settings) -> Page:
     page = await context.new_page()
-    await page.goto(WALLETS_URL, wait_until="domcontentloaded", timeout=int(settings.http_timeout * 1000))
+    timeout_ms = int(settings.http_timeout * 1000)
+    await page.goto(WALLETS_URL, wait_until="domcontentloaded", timeout=timeout_ms)
 
-    if "openid-connect/auth" in page.url:
-        await page.fill("#username", settings.email)
-        await page.fill("#password", settings.password)
-        await page.click("#kc-login")
-        await page.wait_for_url("**/wallets**", timeout=int(settings.http_timeout * 1000))
+    if _needs_login(page.url):
+        await _submit_login(page, settings, timeout_ms=timeout_ms)
+
+    if not _is_logged_in(page.url):
+        await _raise_login_failure(page, settings)
 
     await page.wait_for_timeout(1500)
     await dismiss_modals(page)
     return page
+
+
+async def save_session(context: BrowserContext, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    await context.storage_state(path=str(path))
+
+
+def default_session_path() -> Path:
+    return Path.home() / ".config" / "wizzair" / "storage_state.json"
+
+
+async def _submit_login(page: Page, settings: Settings, *, timeout_ms: int) -> None:
+    await page.wait_for_selector("#username", timeout=timeout_ms)
+    await page.fill("#username", settings.email)
+    await page.fill("#password", settings.password)
+
+    try:
+        async with page.expect_navigation(timeout=timeout_ms, wait_until="domcontentloaded"):
+            await page.click("#kc-login")
+    except PlaywrightError:
+        pass
+
+    deadline = asyncio.get_event_loop().time() + (timeout_ms / 1000)
+    while asyncio.get_event_loop().time() < deadline:
+        if _is_logged_in(page.url):
+            return
+
+        login_error = await _read_login_error(page)
+        if login_error:
+            raise RuntimeError(f"Logowanie nie powiodło się: {login_error}")
+
+        if _needs_login(page.url) and "login-actions/authenticate" not in page.url:
+            login_error = await _read_login_error(page)
+            if login_error:
+                raise RuntimeError(f"Logowanie nie powiodło się: {login_error}")
+
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=2000)
+        except PlaywrightError:
+            pass
+        await page.wait_for_timeout(1000)
+
+    await _raise_login_failure(page, settings)
+
+
+async def _read_login_error(page: Page) -> str:
+    for selector in LOGIN_ERROR_SELECTORS:
+        locator = page.locator(selector).first
+        if await locator.count() == 0:
+            continue
+        try:
+            text = (await locator.inner_text(timeout=1000)).strip()
+        except PlaywrightError:
+            continue
+        if text and "error" not in text.lower()[:6]:
+            return text
+        if text:
+            return text
+    return ""
+
+
+def _needs_login(url: str) -> bool:
+    lowered = url.lower()
+    return "openid-connect/auth" in lowered or "login-actions" in lowered
+
+
+def _is_logged_in(url: str) -> bool:
+    lowered = url.lower()
+    return "multipass.wizzair.com" in lowered and (
+        "wallets" in lowered
+        or "private-page" in lowered
+        or "/availability/" in lowered
+    )
+
+
+async def _raise_login_failure(page: Page, settings: Settings) -> None:
+    logs_dir = Path("logs")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    screenshot = logs_dir / "login_failed.png"
+    try:
+        await page.screenshot(path=str(screenshot), full_page=True)
+    except PlaywrightError:
+        screenshot = None
+
+    login_error = await _read_login_error(page)
+    hints = [
+        "Sprawdź WIZZAIR_EMAIL i WIZZAIR_PASSWORD w pliku .env",
+        "Spróbuj logowania z widoczną przeglądarką: python -m wizzair login --headed",
+        "Na Macu headless Chrome bywa blokowany — użyj --headed lub zapisaną sesję",
+    ]
+    if screenshot:
+        hints.append(f"Zrzut ekranu: {screenshot}")
+
+    detail = login_error or f"utknął na URL: {page.url}"
+    raise RuntimeError(f"Nie udało się zalogować do Wizz Multipass ({detail}).\n" + "\n".join(f"- {h}" for h in hints))
 
 
 async def dismiss_modals(page: Page) -> None:
@@ -38,7 +144,7 @@ async def dismiss_modals(page: Page) -> None:
         if await button.count() > 0:
             try:
                 await button.click(timeout=1500)
-            except Exception:
+            except PlaywrightError:
                 pass
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(300)
@@ -92,9 +198,8 @@ async def discover_destinations(page: Page, origin: str) -> list[Destination]:
         await page.wait_for_timeout(500)
         for label in await page.locator("ul.autocomplete-result-list:visible li").all_inner_texts():
             label = label.strip()
-            if not label:
-                continue
-            destinations.add(label)
+            if label:
+                destinations.add(label)
 
     parsed: list[Destination] = []
     for label in sorted(destinations):

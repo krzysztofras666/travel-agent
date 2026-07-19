@@ -6,6 +6,7 @@ from playwright.async_api import async_playwright
 from rich.console import Console
 from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn, TimeElapsedColumn
 
+from wizzair.browser import open_browser_context, persist_session
 from wizzair.config import Settings
 from wizzair.models import Destination, MultipassFlight, ScanDiagnostic, ScanResult
 from wizzair.multipass import discover_destinations, login
@@ -19,12 +20,10 @@ async def scan_multipass(settings: Settings) -> ScanResult:
     console = Console(stderr=True)
 
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=settings.headless)
-        context = await browser.new_context(
-            locale=f"{settings.locale}-PL",
-            user_agent=settings.user_agent,
-        )
+        browser, context = await open_browser_context(playwright, settings)
         page = await login(context, settings)
+        session_path = await persist_session(context, settings)
+        console.print(f"[dim]Sesja zapisana: {session_path}[/dim]")
 
         destinations_by_origin: dict[str, list[Destination]] = {}
         for origin in settings.origins:
@@ -90,6 +89,15 @@ async def scan_multipass(settings: Settings) -> ScanResult:
         )
     )
     return ScanResult(flights=flights, diagnostics=diagnostics)
+
+
+async def login_and_save_session(settings: Settings) -> str:
+    async with async_playwright() as playwright:
+        browser, context = await open_browser_context(playwright, settings)
+        page = await login(context, settings)
+        session_path = await persist_session(context, settings)
+        await browser.close()
+        return str(session_path)
 
 
 def _search_dates(days_ahead: int) -> list[str]:

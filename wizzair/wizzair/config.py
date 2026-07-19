@@ -3,7 +3,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from pathlib import Path
+
 from dotenv import load_dotenv
+
+from wizzair.multipass import default_session_path
 
 load_dotenv()
 
@@ -27,6 +31,8 @@ class Settings:
     locale: str
     user_agent: str
     headless: bool
+    use_chrome: bool
+    storage_state_path: Path
     email_from: str
     email_to: list[str]
     gmail_token_dir: str
@@ -60,6 +66,10 @@ def get_settings() -> Settings:
         locale=os.getenv("WIZZAIR_LOCALE", "pl"),
         user_agent=os.getenv("WIZZAIR_USER_AGENT", DEFAULT_USER_AGENT),
         headless=os.getenv("WIZZAIR_HEADLESS", "true").lower() in {"1", "true", "yes"},
+        use_chrome=os.getenv("WIZZAIR_USE_CHROME", "true").lower() in {"1", "true", "yes"},
+        storage_state_path=Path(
+            os.path.expanduser(os.getenv("WIZZAIR_STORAGE_STATE", str(default_session_path())))
+        ),
         email_from=os.getenv("WIZZAIR_EMAIL_FROM", "andalath@gmail.com"),
         email_to=_split_emails(os.getenv("WIZZAIR_EMAIL_TO", default_to)),
         gmail_token_dir=os.path.expanduser(
