@@ -11,7 +11,15 @@ from googleapiclient.discovery import build
 
 from wizzair.config import Settings
 from wizzair.models import ScanResult
-from wizzair.render_html import build_subject, render_html, render_plain_text
+from wizzair.render_html import (
+    build_delta_subject,
+    build_subject,
+    render_delta_html,
+    render_delta_plain_text,
+    render_html,
+    render_plain_text,
+)
+from wizzair.snapshot import ScanDelta
 
 
 def send_digest(
@@ -22,15 +30,65 @@ def send_digest(
     recipients: list[str] | None = None,
     dry_run: bool = False,
     out_path: Path | None = None,
+    slot_label: str = "08:00",
 ) -> Path:
     from_addr = sender or settings.email_from
     to_addrs = recipients or settings.email_to
-    html = render_html(result)
+    html = render_html(result, slot_label=slot_label)
     plain = render_plain_text(result)
     subject = build_subject(result)
+    return _send_message(
+        settings,
+        from_addr=from_addr,
+        to_addrs=to_addrs,
+        subject=subject,
+        plain=plain,
+        html=html,
+        dry_run=dry_run,
+        out_path=out_path or Path("logs/last_email.html"),
+    )
 
-    if out_path is None:
-        out_path = Path("logs/last_email.html")
+
+def send_delta_digest(
+    settings: Settings,
+    delta: ScanDelta,
+    *,
+    sender: str | None = None,
+    recipients: list[str] | None = None,
+    dry_run: bool = False,
+    out_path: Path | None = None,
+) -> Path | None:
+    if not delta.has_changes and not dry_run:
+        return None
+
+    from_addr = sender or settings.email_from
+    to_addrs = recipients or settings.email_to
+    html = render_delta_html(delta)
+    plain = render_delta_plain_text(delta)
+    subject = build_delta_subject(delta)
+    return _send_message(
+        settings,
+        from_addr=from_addr,
+        to_addrs=to_addrs,
+        subject=subject,
+        plain=plain,
+        html=html,
+        dry_run=dry_run,
+        out_path=out_path or Path("logs/last_delta_email.html"),
+    )
+
+
+def _send_message(
+    settings: Settings,
+    *,
+    from_addr: str,
+    to_addrs: list[str],
+    subject: str,
+    plain: str,
+    html: str,
+    dry_run: bool,
+    out_path: Path,
+) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html, encoding="utf-8")
 
