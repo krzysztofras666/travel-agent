@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import string
-from pathlib import Path
 
 from playwright.async_api import BrowserContext, Error as PlaywrightError, Page
 
@@ -41,15 +40,6 @@ async def login(context: BrowserContext, settings: Settings) -> Page:
     await page.wait_for_timeout(1500)
     await dismiss_modals(page)
     return page
-
-
-async def save_session(context: BrowserContext, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    await context.storage_state(path=str(path))
-
-
-def default_session_path() -> Path:
-    return Path.home() / ".config" / "wizzair" / "storage_state.json"
 
 
 async def _submit_login(page: Page, settings: Settings, *, timeout_ms: int) -> None:

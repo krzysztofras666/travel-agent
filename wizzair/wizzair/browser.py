@@ -4,8 +4,7 @@ from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Playwright
 
-from wizzair.config import Settings
-from wizzair.multipass import default_session_path, save_session
+from wizzair.config import Settings, default_session_path
 
 
 async def open_browser_context(
@@ -38,5 +37,6 @@ async def open_browser_context(
 
 async def persist_session(context: BrowserContext, settings: Settings) -> Path:
     path = settings.storage_state_path
-    await save_session(context, path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    await context.storage_state(path=str(path))
     return path

@@ -7,8 +7,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from wizzair.multipass import default_session_path
-
 load_dotenv()
 
 DEFAULT_USER_AGENT = (
@@ -17,6 +15,10 @@ DEFAULT_USER_AGENT = (
 )
 
 WALLETS_URL = "https://multipass.wizzair.com/pl/w6/subscriptions/spa/private-page/wallets"
+
+
+def default_session_path() -> Path:
+    return Path.home() / ".config" / "wizzair" / "storage_state.json"
 
 
 @dataclass(frozen=True)
