@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wizzair"
 version = "0.1.0"
-description = "Search Wizz Air flights and surface the cheapest fares"
+description = "Search Wizz Multipass All You Can Fly availability"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

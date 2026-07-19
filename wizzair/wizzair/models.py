@@ -3,45 +3,41 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-@dataclass(frozen=True)
-class Route:
-    origin: str
-    destination: str
-    origin_name: str
-    destination_name: str
+NO_RESULTS_SNIPPET = "Niestety, nie znaleziono żadnych wyników"
 
-    @property
-    def id(self) -> str:
-        return f"{self.origin}-{self.destination}"
+
+@dataclass(frozen=True)
+class Destination:
+    code: str
+    label: str
 
 
 @dataclass
-class FlightOffer:
+class MultipassFlight:
     origin: str
+    origin_name: str
     destination: str
+    destination_name: str
     departure_date: str
-    return_date: str
     departure_time: str
     arrival_time: str
-    flight_number: str
+    flight_code: str
+    duration: str
     price: float
     currency: str
-    bundle: str
-    url: str = ""
+    stops: str = ""
 
 
 @dataclass
-class SearchDiagnostic:
-    route_id: str
+class ScanDiagnostic:
     origin: str
     destination: str
     departure_date: str
-    return_date: str
-    offers_found: int
+    flights_found: int
     error: str = ""
 
 
 @dataclass
-class SearchResult:
-    offers: list[FlightOffer] = field(default_factory=list)
-    diagnostics: list[SearchDiagnostic] = field(default_factory=list)
+class ScanResult:
+    flights: list[MultipassFlight] = field(default_factory=list)
+    diagnostics: list[ScanDiagnostic] = field(default_factory=list)
