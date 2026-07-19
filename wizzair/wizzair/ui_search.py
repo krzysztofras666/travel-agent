@@ -8,6 +8,7 @@ from playwright.async_api import Page
 from wizzair.config import WALLETS_URL
 from wizzair.models import Destination, MultipassFlight
 from wizzair.multipass import ORIGIN_QUERIES, dismiss_modals
+from wizzair.urls import multipass_wallets_url, wizzair_booking_url
 
 NO_RESULTS_SNIPPET = "niestety, nie znaleziono żadnych wyników"
 FLIGHT_CODE_RE = re.compile(r"\bW6\d+\b")
@@ -81,6 +82,12 @@ async def search_route_ui(
 
     flights: list[MultipassFlight] = []
     seen: set[str] = set()
+    multipass_url = page.url if "availability" in page.url else multipass_wallets_url()
+    wizzair_url = wizzair_booking_url(
+        origin=origin_code,
+        destination=dest_code,
+        departure_date=departure_date,
+    )
     for card_text in raw_cards:
         parsed = _parse_card_text(
             card_text,
@@ -88,6 +95,8 @@ async def search_route_ui(
             destination=dest_code,
             departure_date=departure_date,
             destination_label=destination.label,
+            multipass_url=multipass_url,
+            wizzair_url=wizzair_url,
         )
         if parsed is None:
             continue
@@ -144,6 +153,8 @@ def _parse_card_text(
     destination: str,
     departure_date: str,
     destination_label: str,
+    multipass_url: str,
+    wizzair_url: str,
 ) -> MultipassFlight | None:
     code_match = FLIGHT_CODE_RE.search(text)
     if not code_match:
@@ -155,8 +166,22 @@ def _parse_card_text(
         return None
 
     duration = next((line for line in lines if re.fullmatch(r"\d+h \d+m", line)), "")
-    origin_name = next((line for line in lines if line not in times and "UTC" not in line and "W6" not in line and "zł" not in line.lower() and "WYBIERZ" not in line.upper()), origin)
+    origin_name = next(
+        (
+            line
+            for line in lines
+            if line not in times
+            and "UTC" not in line
+            and "W6" not in line
+            and "zł" not in line.lower()
+            and "WYBIERZ" not in line.upper()
+        ),
+        origin,
+    )
     destination_name = destination_label.split("(")[0].strip()
+    price_match = re.search(r"zł\s*([\d.,]+)", text, re.IGNORECASE)
+    price = float(price_match.group(1).replace(",", ".")) if price_match else 0.0
+    currency = "PLN" if price_match else ""
 
     return MultipassFlight(
         origin=origin,
@@ -168,7 +193,9 @@ def _parse_card_text(
         arrival_time=times[1],
         flight_code=code_match.group(0),
         duration=duration,
-        price=0.0,
-        currency="",
+        price=price,
+        currency=currency,
         stops="",
+        multipass_url=multipass_url,
+        wizzair_url=wizzair_url,
     )

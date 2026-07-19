@@ -26,6 +26,8 @@ class MultipassFlight:
     price: float
     currency: str
     stops: str = ""
+    multipass_url: str = ""
+    wizzair_url: str = ""
 
 
 @dataclass

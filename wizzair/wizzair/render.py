@@ -75,6 +75,8 @@ def _flight_to_dict(flight: MultipassFlight) -> dict:
         "price": flight.price,
         "currency": flight.currency,
         "stops": flight.stops,
+        "multipass_url": flight.multipass_url,
+        "wizzair_url": flight.wizzair_url,
     }
 
 

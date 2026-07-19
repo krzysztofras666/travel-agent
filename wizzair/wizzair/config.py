@@ -27,10 +27,17 @@ class Settings:
     locale: str
     user_agent: str
     headless: bool
+    email_from: str
+    email_to: list[str]
+    gmail_token_dir: str
 
 
 def _split_csv(value: str) -> tuple[str, ...]:
     return tuple(part.strip().upper() for part in value.split(",") if part.strip())
+
+
+def _split_emails(value: str) -> list[str]:
+    return [part.strip() for part in value.split(",") if part.strip()]
 
 
 def get_settings() -> Settings:
@@ -41,6 +48,7 @@ def get_settings() -> Settings:
             "WIZZAIR_EMAIL and WIZZAIR_PASSWORD are required. Set them in wizzair/.env"
         )
 
+    default_to = "katarzyna.dyngosz@gmail.com,andalath@gmail.com"
     return Settings(
         email=email,
         password=password,
@@ -52,4 +60,9 @@ def get_settings() -> Settings:
         locale=os.getenv("WIZZAIR_LOCALE", "pl"),
         user_agent=os.getenv("WIZZAIR_USER_AGENT", DEFAULT_USER_AGENT),
         headless=os.getenv("WIZZAIR_HEADLESS", "true").lower() in {"1", "true", "yes"},
+        email_from=os.getenv("WIZZAIR_EMAIL_FROM", "andalath@gmail.com"),
+        email_to=_split_emails(os.getenv("WIZZAIR_EMAIL_TO", default_to)),
+        gmail_token_dir=os.path.expanduser(
+            os.getenv("GMAIL_TOKEN_DIR", "~/.config/gmail-agent")
+        ),
     )
