@@ -25,7 +25,7 @@ def render_html(result: RunResult) -> str:
         sections = (
             '<p style="margin:0;color:#5b6472;font-size:15px;">'
             "Dziś nie znaleźliśmy ofert z terminem wyjazdu od jutra. "
-            "Spróbuj ponownie jutro o 08:30."
+            "Spróbuj ponownie jutro o 08:00."
             "</p>"
         )
 
@@ -60,7 +60,7 @@ def render_html(result: RunResult) -> str:
                 <tr>
                   {_stat_cell(str(len({o.destination for o in result.offers})), "kierunków")}
                   {_stat_cell(str(len(result.offers)), "ofert")}
-                  {_stat_cell("08:30", "codziennie")}
+                  {_stat_cell("08:00", "codziennie")}
                 </tr>
               </table>
             </td>
