@@ -21,9 +21,10 @@ python -m wizzair run
 2. Loguje się kontem z `.env`
 3. Dla lotnisk **KRK** i **KTW** pobiera listę destynacji z formularza wyszukiwania
 4. Sprawdza loty od **dziś** przez **3 najbliższe dni** (łącznie 4 dni)
-5. Dla każdej kombinacji origin / destynacja / data woła wewnętrzne API dostępności
-6. Gdy API zwraca `error.availability` — traktuje to jako brak lotu i przechodzi dalej
-7. Wyświetla wszystkie znalezione loty
+5. Dla każdej kombinacji origin / destynacja / data wykonuje **wyszukiwanie w UI** (tak jak ręcznie)
+6. Lot jest uznawany za dostępny tylko gdy na stronie widać kartę z numerem lotu i przyciskiem **WYBIERZ**
+7. Gdy pojawia się komunikat „Niestety, nie znaleziono żadnych wyników” — przechodzi dalej
+8. Wyświetla wszystkie znalezione loty
 
 ## Komendy
 
@@ -43,7 +44,7 @@ python -m wizzair run --headed
 | `WIZZAIR_PASS_ID` | auto | ID karnetu Multipass (wykrywane po logowaniu) |
 | `WIZZAIR_ORIGINS` | `KRK,KTW` | Lotniska wylotu (kody IATA, po przecinku) |
 | `WIZZAIR_DAYS` | `4` | Liczba dni do sprawdzenia (dziś + N-1) |
-| `WIZZAIR_SEARCH_CONCURRENCY` | `4` | Równoległe zapytania API |
+| `WIZZAIR_SEARCH_CONCURRENCY` | `4` | (nieużywane — skan idzie przez UI) |
 | `WIZZAIR_HEADLESS` | `true` | Headless Chromium |
 
 **Nie commituj pliku `.env` z hasłem.**

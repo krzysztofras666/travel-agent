@@ -1,21 +1,22 @@
 from __future__ import annotations
 
-import asyncio
-import json
 from datetime import date, timedelta
 
 from playwright.async_api import async_playwright
+from rich.console import Console
+from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn, TimeElapsedColumn
 
-from wizzair.api import availability_api_url, build_availability_payload, parse_availability_response
 from wizzair.config import Settings
 from wizzair.models import Destination, MultipassFlight, ScanDiagnostic, ScanResult
-from wizzair.multipass import discover_destinations, extract_pass_id, login
+from wizzair.multipass import discover_destinations, login
+from wizzair.ui_search import search_route_ui
 
 
 async def scan_multipass(settings: Settings) -> ScanResult:
     dates = _search_dates(settings.days_ahead)
     flights: list[MultipassFlight] = []
     diagnostics: list[ScanDiagnostic] = []
+    console = Console(stderr=True)
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=settings.headless)
@@ -24,77 +25,59 @@ async def scan_multipass(settings: Settings) -> ScanResult:
             user_agent=settings.user_agent,
         )
         page = await login(context, settings)
-        pass_id = await extract_pass_id(page, settings)
-        api_url = availability_api_url(pass_id)
 
         destinations_by_origin: dict[str, list[Destination]] = {}
         for origin in settings.origins:
+            console.print(f"[cyan]Pobieram destynacje dla {origin}...[/cyan]")
             destinations_by_origin[origin] = await discover_destinations(page, origin)
 
-        semaphore = asyncio.Semaphore(settings.search_concurrency)
+        jobs: list[tuple[str, Destination, str]] = []
+        for origin, destinations in destinations_by_origin.items():
+            for destination in destinations:
+                for departure_date in dates:
+                    jobs.append((origin, destination, departure_date))
 
-        async def query_route(
-            origin: str,
-            destination: Destination,
-            departure_date: str,
-        ) -> tuple[list[MultipassFlight], ScanDiagnostic]:
-            async with semaphore:
-                payload = build_availability_payload(
-                    origin=origin,
-                    destination=destination.code,
-                    departure_date=departure_date,
+        with Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Skanowanie lotów w UI Multipass", total=len(jobs))
+
+            for origin, destination, departure_date in jobs:
+                progress.update(
+                    task,
+                    description=f"{origin}→{destination.code} {departure_date}",
                 )
                 try:
-                    response = await page.request.post(api_url, data=payload)
-                    body = await response.text()
-                    if response.status != 200:
-                        if _is_no_availability(body):
-                            return [], ScanDiagnostic(
-                                origin=origin,
-                                destination=destination.code,
-                                departure_date=departure_date,
-                                flights_found=0,
-                            )
-                        return [], ScanDiagnostic(
+                    found = await search_route_ui(
+                        page,
+                        origin=origin,
+                        destination=destination,
+                        departure_date=departure_date,
+                    )
+                    diagnostics.append(
+                        ScanDiagnostic(
+                            origin=origin,
+                            destination=destination.code,
+                            departure_date=departure_date,
+                            flights_found=len(found),
+                        )
+                    )
+                    flights.extend(found)
+                except Exception as exc:  # noqa: BLE001
+                    diagnostics.append(
+                        ScanDiagnostic(
                             origin=origin,
                             destination=destination.code,
                             departure_date=departure_date,
                             flights_found=0,
-                            error=f"HTTP {response.status}: {body[:200]}",
+                            error=str(exc),
                         )
-
-                    data = json.loads(body)
-                    found = parse_availability_response(
-                        data,
-                        origin=origin,
-                        destination=destination.code,
-                        departure_date=departure_date,
                     )
-                    return found, ScanDiagnostic(
-                        origin=origin,
-                        destination=destination.code,
-                        departure_date=departure_date,
-                        flights_found=len(found),
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    return [], ScanDiagnostic(
-                        origin=origin,
-                        destination=destination.code,
-                        departure_date=departure_date,
-                        flights_found=0,
-                        error=str(exc),
-                    )
-
-        tasks = []
-        for origin, destinations in destinations_by_origin.items():
-            for destination in destinations:
-                for departure_date in dates:
-                    tasks.append(query_route(origin, destination, departure_date))
-
-        pairs = await asyncio.gather(*tasks)
-        for found, diag in pairs:
-            diagnostics.append(diag)
-            flights.extend(found)
+                progress.advance(task)
 
         await browser.close()
 
@@ -112,8 +95,3 @@ async def scan_multipass(settings: Settings) -> ScanResult:
 def _search_dates(days_ahead: int) -> list[str]:
     start = date.today()
     return [(start + timedelta(days=offset)).isoformat() for offset in range(days_ahead)]
-
-
-def _is_no_availability(body: str) -> bool:
-    lowered = body.lower()
-    return "error.availability" in lowered
