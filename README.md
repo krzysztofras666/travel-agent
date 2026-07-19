@@ -41,7 +41,7 @@ python -m travel_agent send --dry-run
 python -m travel_agent preview-email --out /tmp/preview.html
 ```
 
-## Daily email digest (08:30)
+## Daily email digest (08:00)
 
 The digest is a styled HTML email with a clickable link for **every offer**
 (destination title + “Zobacz ofertę” button). Default recipients:
@@ -67,7 +67,7 @@ python -m travel_agent send
 python -m travel_agent preview-email --out logs/last_email.html
 ```
 
-### Schedule every day at 08:30 (macOS launchd)
+### Schedule every day at 08:00 (macOS launchd)
 
 ```bash
 cd ~/travel-agent
