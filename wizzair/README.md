@@ -13,6 +13,7 @@ pip install -r requirements.txt
 playwright install chromium
 cp .env.example .env          # uzupełnij WIZZAIR_EMAIL i WIZZAIR_PASSWORD
 python -m wizzair login --headed
+python -m wizzair doctor
 python -m wizzair send --dry-run
 ```
 
@@ -26,6 +27,7 @@ python -m wizzair send --dry-run
 python -m wizzair send-delta --dry-run
 python -m wizzair preview-email --out logs/last_email.html
 python -m wizzair preview-delta --out logs/last_delta_email.html
+python -m wizzair doctor              # sprawdź .env, Gmail, sesję i harmonogram
 ```
 
 ## Harmonogram e-maili (macOS launchd)
@@ -61,13 +63,24 @@ python -m wizzair send-delta              # popołudniowy mail (tylko jeśli są
 
 ### Zaplanuj codziennie 08:00 i 13:00
 
+**Bez tego kroku maile nie wyślą się automatycznie.** Harmonogram działa tylko na Macu.
+
 ```bash
 cd ~/travel-agent/wizzair
 chmod +x scripts/*.sh
 ./scripts/install_wizzair_schedule.sh
+python -m wizzair doctor
 ./scripts/run_wizzair_morning.sh --dry-run
 ./scripts/run_wizzair_afternoon.sh --dry-run
 ```
+
+Sprawdzenie, czy harmonogram jest aktywny:
+
+```bash
+launchctl print "gui/$(id -u)/com.wizzair.daily"
+```
+
+Jeśli widzisz `Could not find service` — harmonogram nie jest zainstalowany.
 
 Logi:
 - `logs/wizzair_morning.log`
