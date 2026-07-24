@@ -100,6 +100,11 @@ Logi:
    - nowe loty od rana
    - loty, które zniknęły
 5. Jeśli o 13:00 nie ma zmian — mail nie jest wysyłany
+6. Lot jest uznawany za dostępny **tylko**, gdy karta wyniku w UI zawiera:
+   - przycisk **WYBIERZ**
+   - kod lotu **W6…**
+   - nazwę/kod właściwej destynacji (np. Rodos/RHO)
+   - cenę w **zł**
 
 ## Jak skrócić skan
 
@@ -137,3 +142,7 @@ Lista destynacji jest cache'owana w `~/.config/wizzair/destinations-KRK.json` (o
 | `WIZZAIR_EMAIL_FROM` | `andalath@gmail.com` | Nadawca |
 | `WIZZAIR_EMAIL_TO` | katarzyna + andalath | Odbiorcy |
 | `GMAIL_TOKEN_DIR` | `~/.config/gmail-agent` | Token OAuth |
+| `WIZZAIR_ORIGINS` | `KRK,KTW` | Lotniska wylotu |
+| `WIZZAIR_DAYS` | `4` | Ile dni do przodu (dziś włącznie) |
+| `WIZZAIR_DESTINATIONS` | — | Opcjonalny filtr IATA (np. `FCO,BCN`) |
+| `WIZZAIR_FAST_SCAN` | `false` | Krótsze timeouty UI |
