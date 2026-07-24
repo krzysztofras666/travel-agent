@@ -110,9 +110,11 @@ def _send_message(
 
 def find_gmail_token_path(settings: Settings, sender: str) -> Path:
     repo_root = Path(__file__).resolve().parents[1]
+    home_gmail_agent = Path.home() / "gmail-agent"
     candidates = [
         Path(settings.gmail_token_dir) / sender / "token.json",
         Path(settings.gmail_token_dir) / "accounts" / sender / "token.json",
+        home_gmail_agent / "accounts" / sender / "token.json",
         repo_root.parent / "gmail-agent" / "accounts" / sender / "token.json",
         repo_root / "accounts" / sender / "token.json",
     ]
