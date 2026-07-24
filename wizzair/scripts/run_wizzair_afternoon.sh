@@ -13,7 +13,7 @@ mkdir -p logs
 LOG="logs/wizzair_afternoon.log"
 
 {
-  echo "=== $(date -Iseconds) wizzair afternoon delta run ==="
+  echo "=== $(date '+%Y-%m-%dT%H:%M:%S%z') wizzair afternoon delta run ==="
   "$PYTHON" -m wizzair send-delta "$@"
 } >>"$LOG" 2>&1
 
