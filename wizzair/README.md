@@ -101,6 +101,33 @@ Logi:
    - loty, które zniknęły
 5. Jeśli o 13:00 nie ma zmian — mail nie jest wysyłany
 
+## Jak skrócić skan
+
+Domyślnie: **2 lotniska × ~30 destynacji × 4 dni ≈ 240 wyszukiwań UI** (~30–45 min).
+
+| Sposób | Przykład | Efekt |
+| --- | --- | --- |
+| Mniej dni | `--days 2` lub `WIZZAIR_DAYS=2` | ~2× szybciej |
+| Jedno lotnisko | `--origin KRK` | ~2× szybciej |
+| Wybrane kierunki | `--destination FCO --destination BCN` | proporcjonalnie mniej |
+| Tryb fast | `--fast` lub `WIZZAIR_FAST_SCAN=true` | ~30–40% szybciej |
+| Kombinacja | `send --origin KRK --days 2 --fast` | np. ~8–12 min |
+
+Przykłady:
+
+```bash
+# tylko Kraków, dziś + jutro
+python -m wizzair send --origin KRK --days 2
+
+# tylko kilka popularnych kierunków
+python -m wizzair send --destination FCO,BCN,LTN,MXP
+
+# szybki test
+python -m wizzair run --origin KRK --days 1 --destination FCO --fast
+```
+
+Lista destynacji jest cache'owana w `~/.config/wizzair/destinations-KRK.json` (odświeża się co 7 dni).
+
 ## Konfiguracja (`.env`)
 
 | Zmienna | Domyślnie | Opis |

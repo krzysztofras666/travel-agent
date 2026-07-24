@@ -8,6 +8,7 @@ from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn, T
 
 from wizzair.browser import open_browser_context, persist_session
 from wizzair.config import Settings
+from wizzair.destinations_cache import load_cached_destinations, save_cached_destinations
 from wizzair.models import Destination, MultipassFlight, ScanDiagnostic, ScanResult
 from wizzair.multipass import discover_destinations, login
 from wizzair.ui_search import search_route_ui
@@ -27,14 +28,27 @@ async def scan_multipass(settings: Settings) -> ScanResult:
 
         destinations_by_origin: dict[str, list[Destination]] = {}
         for origin in settings.origins:
-            console.print(f"[cyan]Pobieram destynacje dla {origin}...[/cyan]")
-            destinations_by_origin[origin] = await discover_destinations(page, origin)
+            cached = load_cached_destinations(origin)
+            if cached is not None:
+                console.print(f"[dim]Destynacje {origin} z cache ({len(cached)})[/dim]")
+                destinations_by_origin[origin] = _filter_destinations(cached, settings)
+            else:
+                console.print(f"[cyan]Pobieram destynacje dla {origin}...[/cyan]")
+                discovered = await discover_destinations(page, origin)
+                save_cached_destinations(origin, discovered)
+                destinations_by_origin[origin] = _filter_destinations(discovered, settings)
 
         jobs: list[tuple[str, Destination, str]] = []
         for origin, destinations in destinations_by_origin.items():
             for destination in destinations:
                 for departure_date in dates:
                     jobs.append((origin, destination, departure_date))
+
+        console.print(
+            f"[dim]Skan: {len(settings.origins)} lotnisk × "
+            f"{sum(len(items) for items in destinations_by_origin.values())} destynacji × "
+            f"{len(dates)} dni = {len(jobs)} wyszukiwań[/dim]"
+        )
 
         with Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -56,6 +70,7 @@ async def scan_multipass(settings: Settings) -> ScanResult:
                         origin=origin,
                         destination=destination,
                         departure_date=departure_date,
+                        settings=settings,
                     )
                     diagnostics.append(
                         ScanDiagnostic(
@@ -98,6 +113,13 @@ async def login_and_save_session(settings: Settings) -> str:
         session_path = await persist_session(context, settings)
         await browser.close()
         return str(session_path)
+
+
+def _filter_destinations(destinations: list[Destination], settings: Settings) -> list[Destination]:
+    if not settings.destination_filter:
+        return destinations
+    allowed = set(settings.destination_filter)
+    return [dest for dest in destinations if dest.code in allowed]
 
 
 def _search_dates(days_ahead: int) -> list[str]:

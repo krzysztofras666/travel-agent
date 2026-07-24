@@ -5,7 +5,7 @@ from datetime import date
 
 from playwright.async_api import Page
 
-from wizzair.config import WALLETS_URL
+from wizzair.config import WALLETS_URL, Settings
 from wizzair.models import Destination, MultipassFlight
 from wizzair.multipass import ORIGIN_QUERIES, dismiss_modals
 from wizzair.urls import multipass_wallets_url, wizzair_booking_url
@@ -20,7 +20,9 @@ async def search_route_ui(
     origin: str,
     destination: Destination,
     departure_date: str,
+    settings: Settings | None = None,
 ) -> list[MultipassFlight]:
+    fast = settings.fast_scan if settings is not None else False
     origin_code = origin.upper()
     dest_code = destination.code.upper()
     origin_query, origin_pick = ORIGIN_QUERIES.get(origin_code, (origin_code[:3], origin_code))
@@ -28,13 +30,18 @@ async def search_route_ui(
     dest_pick = _pick_label(destination.label)
 
     await page.goto(WALLETS_URL, wait_until="domcontentloaded")
-    await page.wait_for_timeout(1000)
+        await page.wait_for_timeout(_ms(1000, fast))
     await dismiss_modals(page)
+    await _select_autocomplete(page, field="origin", query=origin_query, pick=origin_pick, fast=fast)
+    await _select_autocomplete(
+        page,
+        field="destination",
+        query=dest_query,
+        pick=dest_pick,
+        fast=fast,
+    )
 
-    await _select_autocomplete(page, field="origin", query=origin_query, pick=origin_pick)
-    await _select_autocomplete(page, field="destination", query=dest_query, pick=dest_pick)
-
-    if not await _select_departure_date(page, departure_date):
+    if not await _select_departure_date(page, departure_date, fast=fast):
         return []
 
     search_button = page.locator("button.SearchCombo-submit")
@@ -43,9 +50,9 @@ async def search_route_ui(
 
     await search_button.click()
     try:
-        await page.wait_for_url("**/availability/**", timeout=15000)
+        await page.wait_for_url("**/availability/**", timeout=_ms(15000, fast))
     except Exception:
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(_ms(3000, fast))
 
     await page.wait_for_function(
         """() => {
@@ -55,9 +62,9 @@ async def search_route_ui(
             }
             return /W6\\d+/.test(text) && /WYBIERZ/i.test(text);
         }""",
-        timeout=20000,
+        timeout=_ms(20000, fast),
     )
-    await page.wait_for_timeout(500)
+    await page.wait_for_timeout(_ms(500, fast))
 
     body_text = await page.evaluate("() => document.body.innerText")
     if NO_RESULTS_SNIPPET in body_text.lower():
@@ -109,32 +116,45 @@ async def search_route_ui(
     return flights
 
 
-async def _select_autocomplete(page: Page, *, field: str, query: str, pick: str) -> None:
+async def _select_autocomplete(
+    page: Page,
+    *,
+    field: str,
+    query: str,
+    pick: str,
+    fast: bool,
+) -> None:
     field_input = page.locator(f'input[id^="autocomplete-{field}"]').first
     await field_input.click()
     await field_input.fill("")
-    await field_input.type(query, delay=30)
-    await page.wait_for_timeout(900)
+    await field_input.type(query, delay=20 if fast else 30)
+    await page.wait_for_timeout(_ms(900, fast))
     await page.locator("ul.autocomplete-result-list:visible li").filter(has_text=pick).first.click()
-    await page.wait_for_timeout(400)
+    await page.wait_for_timeout(_ms(400, fast))
 
 
-async def _select_departure_date(page: Page, departure_date: str) -> bool:
+async def _select_departure_date(page: Page, departure_date: str, *, fast: bool) -> bool:
     target = date.fromisoformat(departure_date)
     departure_input = page.locator("#Odloty").first
     await departure_input.click()
-    await page.wait_for_timeout(600)
+    await page.wait_for_timeout(_ms(600, fast))
 
     for _ in range(8):
         cell = page.locator(f'td.cell[title="{departure_date}"]:not(.disabled)')
         if await cell.count() > 0:
             await cell.first.click()
-            await page.wait_for_timeout(400)
+            await page.wait_for_timeout(_ms(400, fast))
             return True
         await page.locator(".Datepicker-btn-icon-right").first.click()
-        await page.wait_for_timeout(300)
+        await page.wait_for_timeout(_ms(300, fast))
 
     return False
+
+
+def _ms(value: int, fast: bool) -> int:
+    if not fast:
+        return value
+    return max(150, int(value * 0.6))
 
 
 def _destination_query(label: str) -> str:

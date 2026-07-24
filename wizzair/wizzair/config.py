@@ -28,12 +28,14 @@ class Settings:
     pass_id: str | None
     origins: tuple[str, ...]
     days_ahead: int
+    destination_filter: tuple[str, ...]
     http_timeout: float
     search_concurrency: int
     locale: str
     user_agent: str
     headless: bool
     use_chrome: bool
+    fast_scan: bool
     storage_state_path: Path
     email_from: str
     email_to: list[str]
@@ -63,12 +65,14 @@ def get_settings() -> Settings:
         pass_id=os.getenv("WIZZAIR_PASS_ID") or None,
         origins=_split_csv(os.getenv("WIZZAIR_ORIGINS", "KRK,KTW")),
         days_ahead=int(os.getenv("WIZZAIR_DAYS", "4")),
+        destination_filter=_split_csv(os.getenv("WIZZAIR_DESTINATIONS", "")),
         http_timeout=float(os.getenv("WIZZAIR_HTTP_TIMEOUT", "60")),
         search_concurrency=int(os.getenv("WIZZAIR_SEARCH_CONCURRENCY", "4")),
         locale=os.getenv("WIZZAIR_LOCALE", "pl"),
         user_agent=os.getenv("WIZZAIR_USER_AGENT", DEFAULT_USER_AGENT),
         headless=os.getenv("WIZZAIR_HEADLESS", "true").lower() in {"1", "true", "yes"},
         use_chrome=os.getenv("WIZZAIR_USE_CHROME", "true").lower() in {"1", "true", "yes"},
+        fast_scan=os.getenv("WIZZAIR_FAST_SCAN", "false").lower() in {"1", "true", "yes"},
         storage_state_path=Path(
             os.path.expanduser(os.getenv("WIZZAIR_STORAGE_STATE", str(default_session_path())))
         ),
