@@ -5,6 +5,8 @@ Standalone CLI that scrapes Polish travel portals, extracts concrete offers with
 This is a **separate project** from [gmail-agent](https://github.com/krzysztofras666/gmail-agent).
 Repo: **https://github.com/krzysztofras666/travel-agent**
 
+See also **[wizzair/](wizzair/)** — a sibling CLI for searching Wizz Air flights.
+
 It lives in a sibling `../gmail-agent/` folder locally and can share the same
 `OPENAI_API_KEY` and Gmail OAuth tokens for the daily email digest.
 
