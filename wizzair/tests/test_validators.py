@@ -37,10 +37,10 @@ def test_card_rejects_wrong_destination() -> None:
     assert not card_matches_route(card, destination=destination)
 
 
-def test_card_rejects_missing_price() -> None:
+def test_card_rejects_missing_price_when_required() -> None:
     destination = Destination(code="GOA", label="Genua (GOA)")
     card = _sample_card("Genua", "06:10", "10:25", "W61234", "WYBIERZ")
-    assert not card_matches_route(card, destination=destination)
+    assert not card_matches_route(card, destination=destination, require_price=True)
 
 
 def test_page_has_no_results() -> None:

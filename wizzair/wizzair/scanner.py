@@ -65,7 +65,7 @@ async def scan_multipass(settings: Settings) -> ScanResult:
                     description=f"{origin}→{destination.code} {departure_date}",
                 )
                 try:
-                    found = await search_route_ui(
+                    found, skip_reason = await search_route_ui(
                         page,
                         origin=origin,
                         destination=destination,
@@ -78,6 +78,7 @@ async def scan_multipass(settings: Settings) -> ScanResult:
                             destination=destination.code,
                             departure_date=departure_date,
                             flights_found=len(found),
+                            error=skip_reason,
                         )
                     )
                     flights.extend(found)
@@ -94,6 +95,8 @@ async def scan_multipass(settings: Settings) -> ScanResult:
                 progress.advance(task)
 
         await browser.close()
+
+    _print_skip_summary(console, diagnostics)
 
     flights.sort(
         key=lambda flight: (
@@ -125,3 +128,17 @@ def _filter_destinations(destinations: list[Destination], settings: Settings) ->
 def _search_dates(days_ahead: int) -> list[str]:
     start = date.today()
     return [(start + timedelta(days=offset)).isoformat() for offset in range(days_ahead)]
+
+
+def _print_skip_summary(console: Console, diagnostics: list[ScanDiagnostic]) -> None:
+    counts: dict[str, int] = {}
+    for row in diagnostics:
+        if row.flights_found:
+            continue
+        key = row.error or "no_flights"
+        counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        return
+    console.print("[dim]Podsumowanie pustych wyników:[/dim]")
+    for reason, count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
+        console.print(f"[dim]  {reason}: {count}[/dim]")

@@ -18,7 +18,7 @@ from wizzair.validators import (
 )
 
 TIME_LINE_RE = re.compile(r"^\d{1,2}:\d{2}$")
-DURATION_RE = re.compile(r"^\d+h \d+m$")
+DURATION_RE = re.compile(r"^\d+h\s*\d+m$")
 
 
 async def search_route_ui(
@@ -28,7 +28,7 @@ async def search_route_ui(
     destination: Destination,
     departure_date: str,
     settings: Settings | None = None,
-) -> list[MultipassFlight]:
+) -> tuple[list[MultipassFlight], str]:
     fast = settings.fast_scan if settings is not None else False
     origin_code = origin.upper()
     dest_code = destination.code.upper()
@@ -56,14 +56,14 @@ async def search_route_ui(
         fast=fast,
     )
     if not await _verify_selected_destination(page, destination):
-        return []
+        return [], "destination_not_verified"
 
     if not await _select_departure_date(page, departure_date, fast=fast):
-        return []
+        return [], "date_not_selectable"
 
     search_button = page.locator("button.SearchCombo-submit")
     if not await search_button.is_enabled():
-        return []
+        return [], "search_button_disabled"
 
     previous_url = page.url
     await search_button.click()
@@ -75,13 +75,16 @@ async def search_route_ui(
         previous_url=previous_url,
         fast=fast,
     ):
-        return []
+        return [], "results_page_timeout"
 
     body_text = await page.evaluate("() => document.body.innerText")
     if page_has_no_results(body_text):
-        return []
+        return [], ""
 
     raw_cards = await _extract_result_cards(page, destination=destination)
+    if not raw_cards:
+        return [], "no_flight_cards"
+
     flights: list[MultipassFlight] = []
     seen: set[str] = set()
     multipass_url = page.url if "availability" in page.url else multipass_wallets_url()
@@ -110,7 +113,9 @@ async def search_route_ui(
         seen.add(key)
         flights.append(parsed)
 
-    return flights
+    if not flights:
+        return [], "cards_rejected"
+    return flights, ""
 
 
 async def _extract_result_cards(page: Page, *, destination: Destination) -> list[str]:
@@ -129,8 +134,7 @@ async def _extract_result_cards(page: Page, *, destination: Destination) -> list
                     const hasDestination = destNames.some((name) => upper.includes(name));
                     if (!hasDestination) return '';
                     if (!/W6\\d+/.test(text)) return '';
-                    if (!/zł\\s*[\\d.,]+/i.test(text)) return '';
-                    if (text.length < 80 || text.length > 1200) return '';
+                    if (text.length < 35 || text.length > 2000) return '';
                     return text;
                 })
                 .filter(Boolean);
@@ -156,29 +160,45 @@ async def _wait_for_results_page(
 
     try:
         await page.wait_for_function(
-            """([origin, destination, departureDate, previousUrl]) => {
+            """([origin, destination, departureDate]) => {
                 const href = window.location.href.toUpperCase();
-                const changed = window.location.href !== previousUrl;
-                const urlMatches =
-                    href.includes(origin) &&
-                    href.includes(destination) &&
-                    href.includes(departureDate);
+                const urlMatches = href.includes(origin) && href.includes(destination);
                 const text = document.body.innerText.toLowerCase();
                 const noResults = text.includes('niestety, nie znaleziono żadnych wyników');
                 const hasCards = [...document.querySelectorAll('[class*="SearchResult"]')].some((card) => {
                     const body = (card.innerText || '').toUpperCase();
                     return body.includes(destination) && /W6\\d+/.test(body) && /WYBIERZ/i.test(body);
                 });
-                return changed && (urlMatches || noResults || hasCards);
+                return urlMatches || noResults || hasCards;
             }""",
-            arg=[origin, destination, departure_date, previous_url],
+            arg=[origin, destination, departure_date],
             timeout=timeout,
         )
     except Exception:
-        return _url_matches_search(page.url, origin=origin, destination=destination, departure_date=departure_date)
+        if page_has_no_results(await page.evaluate("() => document.body.innerText")):
+            return True
+        if await _page_has_flight_cards(page, destination=destination):
+            return True
+        return "availability" in page.url.lower()
 
     await page.wait_for_timeout(_ms(700, fast))
     return True
+
+
+async def _page_has_flight_cards(page: Page, *, destination: Destination) -> bool:
+    dest_names = sorted(destination_names(destination))
+    return bool(
+        await page.evaluate(
+            """({ destNames }) => {
+                return [...document.querySelectorAll('[class*="SearchResult"]')].some((card) => {
+                    const text = (card.innerText || '').toUpperCase();
+                    const hasDestination = destNames.some((name) => text.includes(name));
+                    return hasDestination && /W6\\d+/.test(text) && /WYBIERZ/i.test(text);
+                });
+            }""",
+            {"destNames": dest_names},
+        )
+    )
 
 
 def _url_matches_search(url: str, *, origin: str, destination: str, departure_date: str) -> bool:
@@ -195,7 +215,9 @@ def _url_matches_search(url: str, *, origin: str, destination: str, departure_da
 
 
 async def _verify_selected_destination(page: Page, destination: Destination) -> bool:
-    value = await page.locator('input[id^="autocomplete-destination"]').first.input_value()
+    value = (await page.locator('input[id^="autocomplete-destination"]').first.input_value()).strip()
+    if not value:
+        return True
     upper = value.upper()
     names = destination_names(destination)
     return any(name in upper for name in names)

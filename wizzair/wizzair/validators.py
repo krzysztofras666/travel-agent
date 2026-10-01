@@ -22,9 +22,9 @@ def card_matches_route(
     text: str,
     *,
     destination: Destination,
-    require_price: bool = True,
+    require_price: bool = False,
 ) -> bool:
-    if not text or len(text) < 80 or len(text) > 1200:
+    if not text or len(text) < 35 or len(text) > 2000:
         return False
 
     upper = text.upper()
