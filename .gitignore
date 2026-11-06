@@ -8,3 +8,10 @@ dist/
 build/
 .pytest_cache/
 playwright/.cache/
+venv/
+output/
+accounts/*/token.json
+credentials.json
+.playwright-browsers/
+.env.save
+travel-agent/
